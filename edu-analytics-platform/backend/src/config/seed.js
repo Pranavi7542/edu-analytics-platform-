@@ -10,57 +10,62 @@ const { sequelize, User, Course, Enrollment, Assessment, EngagementLog } = requi
 
     const passwordHash = await bcrypt.hash("Password123!", 10);
 
-    const faculty = await User.create({
-      name: "Dr. Priya Raman",
-      email: "faculty@edu.test",
-      passwordHash,
-      role: "faculty",
+    const [faculty] = await User.findOrCreate({
+      where: { email: "faculty@edu.test" },
+      defaults: { name: "Dr. Priya Raman", passwordHash, role: "faculty" },
     });
 
-    const student1 = await User.create({
-      name: "Arjun Kumar",
-      email: "arjun@edu.test",
-      passwordHash,
-      role: "student",
+    const [student1] = await User.findOrCreate({
+      where: { email: "arjun@edu.test" },
+      defaults: { name: "Arjun Kumar", passwordHash, role: "student" },
     });
 
-    const student2 = await User.create({
-      name: "Sneha Iyer",
-      email: "sneha@edu.test",
-      passwordHash,
-      role: "student",
+    const [student2] = await User.findOrCreate({
+      where: { email: "sneha@edu.test" },
+      defaults: { name: "Sneha Iyer", passwordHash, role: "student" },
     });
 
-    const course = await Course.create({
-      code: "CSA10",
-      title: "Software Engineering",
-      program: "B.Tech CSE",
+    const [course] = await Course.findOrCreate({
+      where: { code: "CSA10" },
+      defaults: { title: "Software Engineering", program: "B.Tech CSE" },
     });
 
-    await Enrollment.create({ studentId: student1.id, courseId: course.id });
-    await Enrollment.create({ studentId: student2.id, courseId: course.id });
+    await Enrollment.findOrCreate({ where: { studentId: student1.id, courseId: course.id } });
+    await Enrollment.findOrCreate({ where: { studentId: student2.id, courseId: course.id } });
 
     // Arjun: consistently strong performance
-    await Assessment.bulkCreate([
-      { title: "Quiz 1", score: 85, maxScore: 100, studentId: student1.id, courseId: course.id },
-      { title: "Assignment 1", score: 90, maxScore: 100, studentId: student1.id, courseId: course.id },
-      { title: "Midterm", score: 78, maxScore: 100, studentId: student1.id, courseId: course.id },
-    ]);
-    await EngagementLog.bulkCreate([
-      { activityType: "login", durationMinutes: 20, studentId: student1.id },
-      { activityType: "assignment_submit", durationMinutes: 45, studentId: student1.id },
-      { activityType: "attendance", durationMinutes: 60, studentId: student1.id },
-    ]);
+    for (const assessment of [
+      { title: "Quiz 1", score: 85 },
+      { title: "Assignment 1", score: 90 },
+      { title: "Midterm", score: 78 },
+    ]) {
+      await Assessment.findOrCreate({
+        where: { title: assessment.title, studentId: student1.id, courseId: course.id },
+        defaults: { ...assessment, maxScore: 100, studentId: student1.id, courseId: course.id },
+      });
+    }
+    if ((await EngagementLog.count({ where: { studentId: student1.id } })) === 0) {
+      await EngagementLog.bulkCreate([
+        { activityType: "login", durationMinutes: 20, studentId: student1.id },
+        { activityType: "assignment_submit", durationMinutes: 45, studentId: student1.id },
+        { activityType: "attendance", durationMinutes: 60, studentId: student1.id },
+      ]);
+    }
 
     // Sneha: declining scores + low engagement -> should be flagged at-risk
-    await Assessment.bulkCreate([
-      { title: "Quiz 1", score: 52, maxScore: 100, studentId: student2.id, courseId: course.id },
-      { title: "Assignment 1", score: 40, maxScore: 100, studentId: student2.id, courseId: course.id },
-      { title: "Midterm", score: 35, maxScore: 100, studentId: student2.id, courseId: course.id },
-    ]);
-    await EngagementLog.bulkCreate([
-      { activityType: "login", durationMinutes: 5, studentId: student2.id },
-    ]);
+    for (const assessment of [
+      { title: "Quiz 1", score: 52 },
+      { title: "Assignment 1", score: 40 },
+      { title: "Midterm", score: 35 },
+    ]) {
+      await Assessment.findOrCreate({
+        where: { title: assessment.title, studentId: student2.id, courseId: course.id },
+        defaults: { ...assessment, maxScore: 100, studentId: student2.id, courseId: course.id },
+      });
+    }
+    if ((await EngagementLog.count({ where: { studentId: student2.id } })) === 0) {
+      await EngagementLog.create({ activityType: "login", durationMinutes: 5, studentId: student2.id });
+    }
 
     console.log("Seed data created successfully.");
     console.log("Faculty login: faculty@edu.test / Password123!");
